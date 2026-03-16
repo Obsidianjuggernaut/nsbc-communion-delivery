@@ -337,17 +337,21 @@ function processImage(file){
 }
 
 // ===== RENDER =====
-let _lastData=null;
+let _lastData=null,_listId=null;
 function renderResults(members,svcDate,onDeck,unavail){
   _lastData={members,svcDate,onDeck,unavail};
   if(svcDate)document.getElementById('heroDate').textContent=svcDate;
 
-  // Encode into URL hash for sharing
-  try{
-    const payload=JSON.stringify(_lastData);
-    const encoded=btoa(unescape(encodeURIComponent(payload)));
-    history.replaceState(null,'',location.pathname+'#data='+encoded);
-  }catch(e){console.warn('Share encode error',e)}
+  // If loaded via ?list=ID, keep the short URL; otherwise encode into hash
+  if(_listId){
+    history.replaceState(null,'',location.pathname+'?list='+_listId);
+  }else{
+    try{
+      const payload=JSON.stringify(_lastData);
+      const encoded=btoa(unescape(encodeURIComponent(payload)));
+      history.replaceState(null,'',location.pathname+'#data='+encoded);
+    }catch(e){console.warn('Share encode error',e)}
+  }
 
   const grouped={};
   members.forEach(m=>{if(!grouped[m.deaconTeam])grouped[m.deaconTeam]=[];grouped[m.deaconTeam].push(m)});
@@ -364,6 +368,7 @@ function renderResults(members,svcDate,onDeck,unavail){
   h+=`<div class="action-row">
     <button class="abtn abtn-share" onclick="shareList()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share Dashboard</button>
     <button class="abtn abtn-gold desk-only" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Print</button>
+    <button class="abtn abtn-outline" onclick="exportJSON()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Save JSON</button>
     <button class="abtn abtn-outline" onclick="resetUpload()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Upload New List</button>
   </div>`;
 
@@ -442,10 +447,39 @@ function resetUpload(){
   history.replaceState(null,'',location.pathname);
 }
 
+function exportJSON(){
+  if(!_lastData){alert('No data to export.');return}
+  const name=prompt('Enter a short list ID (e.g. dec2025, jan2026):','');
+  if(!name)return;
+  const safeId=name.replace(/[^a-zA-Z0-9_-]/g,'');
+  const blob=new Blob([JSON.stringify(_lastData,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=safeId+'.json';a.click();
+  toast('Saved '+safeId+'.json — add it to lists/ folder and push to GitHub');
+}
+
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
-// Load from URL hash (shareable link)
+// Load from ?list=ID (short link) or #data= (legacy inline link)
 (function(){
+  const params=new URLSearchParams(location.search);
+  const listId=params.get('list');
+  if(listId){
+    // Fetch hosted JSON file
+    const safeId=listId.replace(/[^a-zA-Z0-9_-]/g,'');
+    showProc(true,'Loading list…');
+    document.getElementById('uploadZone').querySelector('.upload-box').style.display='none';
+    fetch('lists/'+safeId+'.json')
+      .then(r=>{if(!r.ok)throw new Error('List not found: '+safeId);return r.json()})
+      .then(data=>{
+        if(data&&data.members&&data.members.length){
+          _listId=safeId;
+          renderResults(data.members,data.svcDate||'',data.onDeck||[],data.unavail||[]);
+        }else{alert('List is empty.');showProc(false);document.getElementById('uploadZone').querySelector('.upload-box').style.display=''}
+      })
+      .catch(e=>{console.error(e);alert('Could not load list "'+safeId+'". Make sure lists/'+safeId+'.json exists.');showProc(false);document.getElementById('uploadZone').querySelector('.upload-box').style.display=''});
+    return;
+  }
+  // Legacy: load from URL hash
   const hash=location.hash;
   if(!hash||!hash.startsWith('#data='))return;
   try{
