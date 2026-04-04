@@ -459,29 +459,43 @@ function exportJSON(){
 
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
-// Load from ?list=ID (short link) or #data= (legacy inline link)
+// Auto-detect current month list ID (e.g. "apr2026")
+function currentListId(){
+  const months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const now=new Date();
+  return months[now.getMonth()]+now.getFullYear();
+}
+
+// Load a list by ID
+function loadList(safeId){
+  showProc(true,'Loading list…');
+  document.getElementById('uploadZone').querySelector('.upload-box').style.display='none';
+  fetch('lists/'+safeId+'.json')
+    .then(r=>{if(!r.ok)throw new Error('List not found: '+safeId);return r.json()})
+    .then(data=>{
+      if(data&&data.members&&data.members.length){
+        _listId=safeId;
+        renderResults(data.members,data.svcDate||'',data.onDeck||[],data.unavail||[]);
+      }else{alert('List is empty.');showProc(false);document.getElementById('uploadZone').querySelector('.upload-box').style.display=''}
+    })
+    .catch(e=>{console.error(e);alert('Could not load list "'+safeId+'". Make sure lists/'+safeId+'.json exists.');showProc(false);document.getElementById('uploadZone').querySelector('.upload-box').style.display=''});
+}
+
+// Load from ?list=ID, auto-detect current month, or #data= (legacy)
 (function(){
   const params=new URLSearchParams(location.search);
   const listId=params.get('list');
   if(listId){
-    // Fetch hosted JSON file
-    const safeId=listId.replace(/[^a-zA-Z0-9_-]/g,'');
-    showProc(true,'Loading list…');
-    document.getElementById('uploadZone').querySelector('.upload-box').style.display='none';
-    fetch('lists/'+safeId+'.json')
-      .then(r=>{if(!r.ok)throw new Error('List not found: '+safeId);return r.json()})
-      .then(data=>{
-        if(data&&data.members&&data.members.length){
-          _listId=safeId;
-          renderResults(data.members,data.svcDate||'',data.onDeck||[],data.unavail||[]);
-        }else{alert('List is empty.');showProc(false);document.getElementById('uploadZone').querySelector('.upload-box').style.display=''}
-      })
-      .catch(e=>{console.error(e);alert('Could not load list "'+safeId+'". Make sure lists/'+safeId+'.json exists.');showProc(false);document.getElementById('uploadZone').querySelector('.upload-box').style.display=''});
+    loadList(listId.replace(/[^a-zA-Z0-9_-]/g,''));
+    return;
+  }
+  // Auto-load current month
+  const hash=location.hash;
+  if(!hash||!hash.startsWith('#data=')){
+    loadList(currentListId());
     return;
   }
   // Legacy: load from URL hash
-  const hash=location.hash;
-  if(!hash||!hash.startsWith('#data='))return;
   try{
     const json=decodeURIComponent(escape(atob(hash.slice(6))));
     const data=JSON.parse(json);
