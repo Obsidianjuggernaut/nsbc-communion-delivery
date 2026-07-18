@@ -1,5 +1,7 @@
 # ✟ NSBC Communion Delivery Dashboard
 
+> **Moved (2026-07-17).** The dashboard now lives at https://obsidianjuggernaut.github.io/ (repo: `Obsidianjuggernaut/Obsidianjuggernaut.github.io`). This address redirects there, forwarding `?list=` and `#data=` links. This repo is kept as an archive; the README below describes the retired v1 flow.
+
 A mobile-first, shareable web dashboard for managing monthly communion delivery assignments at **New Salem Baptist Church** (Columbus, Ohio). Upload an Excel spreadsheet or photo of the communion list — the dashboard automatically parses, groups by deacon team, and generates a live page with Google Maps navigation and tap-to-call links that can be shared with any deacon via a single URL.
 
 ![Dashboard Preview](docs/preview.png)
